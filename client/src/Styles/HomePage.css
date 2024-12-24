@@ -1,0 +1,34 @@
+
+
+.buttonContainer{
+    align-content: center;
+    justify-content: center;
+    display: flex;
+    height: 100vh;
+}
+
+.loginButton {
+    background-color: #4CAF50; /* Example styles for the button */
+    color: white;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    height: 50px;
+    width: auto;
+}
+
+.loginButton:hover {
+    background-color: #45a049;
+}
+
+.title{
+    display: flex;
+
+    flex-direction: row;
+}
+
+.container{
+    padding: 20px;
+}

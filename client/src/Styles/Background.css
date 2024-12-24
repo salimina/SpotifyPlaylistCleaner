@@ -1,0 +1,20 @@
+.HomeOverlap{
+    position: absolute !important;
+    z-index: 10;
+    display: flex; /* Flexbox for inner content alignment */
+    justify-content: center;
+    align-items: center;
+
+}
+
+.SplineBackground{
+    position: relative;
+    top: 50%; /* Center vertically */
+    left: 50%; /* Center horizontally */
+    transform: translate(-50%, -50%); /* Adjust for exact center alignment */
+    display: flex; /* Flexbox for inner content alignment */
+    justify-content: center;
+    align-items: center;
+    z-index: 0;
+
+}
