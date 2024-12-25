@@ -43,25 +43,38 @@ function Dashboard() {
   
 
 
-  function displaySongs(tracksHref) {
-    console.log("Tracks link:", tracksHref);
+    async function displaySongs(tracksHref) {
+      console.log("Fetching all tracks from:", tracksHref);
+  
+      const token = localStorage.getItem("spotify_token");
+      let allTracks = [];
+      let nextUrl = tracksHref;
+  
+      try {
+          // Fetch tracks page by page
+          while (nextUrl) {
+              const response = await axios.get(nextUrl, {
+                  headers: {
+                      Authorization: `Bearer ${token}`, // Include the Spotify token
+                  },
+              });
+  
+              allTracks = allTracks.concat(response.data.items); // Add current page of tracks
+              console.log(`Fetched ${response.data.items.length} tracks, total: ${allTracks.length}`);
+  
+              nextUrl = response.data.next; // Update next URL from the response
+          }
+  
+          setSongs(allTracks); // Save all tracks to state
+          console.log("All tracks fetched:", allTracks);
+  
+          // Navigate to Songs page and pass all tracks
+          navigate("/songs", { state: { trackItems: allTracks } });
+      } catch (error) {
+          console.error("Error fetching tracks:", error);
+      }
+  }
     
-    if (tracksHref) {
-      // Fetch tracks using the provided href
-      axios
-        .get(tracksHref, {
-          headers: {
-            Authorization: `Bearer ${token}`, // Include the Spotify token
-          },
-        })
-        .then((response) => {
-          const trackItems = response.data.items || [];
-          setSongs(trackItems);
-          console.log("Tracks fetched:", trackItems);
-          navigate("/songs", { state: { trackItems } });
-        }).catch((error) => console.error("Error fetching tracks or audio features:", error));
-    }
-  }  
   
   
   return (

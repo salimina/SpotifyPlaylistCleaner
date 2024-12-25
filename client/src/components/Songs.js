@@ -7,15 +7,33 @@ function Songs() {
 
     useEffect(() => {
         console.log("songlist passed to Songs component:", songlist);
-    }, [songlist]); // Logs whenever songlist changes
+
+        // Log songs with missing or invalid data
+        songlist.forEach((song, index) => {
+            if (!song?.track?.name) {
+                console.log(`Song at index ${index} is missing a name or track object:`, song);
+            }
+        });
+    }, [songlist]);
 
     return (
         <div>
             <h1>Song List</h1>
             <ul>
-                {songlist.map((song, index) => (
-                    <li key={index}>{song.track.name} by {song.track.artists[0].name}</li> // Assuming each track has a "track.name"
-                ))}
+                {songlist.map((song, index) => {
+                    // Ensure song and song.track are valid
+                    if (!song?.track) {
+                        console.log(`Skipping song at index ${index}: Invalid track object`, song);
+                        return null; // Skip this song
+                    }
+
+                    // Render the song details
+                    return (
+                        <li key={index}>
+                            {song.track.name || "Unnamed Song"} by {song.track.artists[0]?.name || "Unknown Artist"}
+                        </li>
+                    );
+                })}
             </ul>
         </div>
     );
