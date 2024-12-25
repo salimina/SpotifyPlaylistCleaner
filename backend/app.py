@@ -110,6 +110,23 @@ def get_track(track_id):
         return jsonify(track)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/playlist-tracks', methods=['GET'])
+def get_playlist_tracks():
+    """Fetch all tracks in a specific playlist."""
+    try:
+        token = request.args.get('token')
+        playlist_id = request.args.get('playlist_id')
+        if not playlist_id:
+            return jsonify({"error": "Playlist ID not provided"}), 400
+
+        sp = Spotify(auth=token)
+
+        # Fetch all tracks in the playlist
+        playlist_tracks = sp.playlist_tracks(playlist_id)
+        return jsonify(playlist_tracks)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
