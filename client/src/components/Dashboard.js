@@ -4,8 +4,6 @@ import axios from "axios";
 
 function Dashboard() {
   const [playlists, setPlaylists] = useState([]);
-  const [selectedPlaylist, setSelectedPlaylist] = useState(null); // Store selected playlist
-  const [songs, setSongs] = useState([]); // Store songs in the selected playlist
   const [audioFeatures, setAudioFeatures] = useState([]); // Store audio features for songs
   const token = localStorage.getItem("spotify_token");
   const navigate = useNavigate();
@@ -26,7 +24,6 @@ function Dashboard() {
           })
           .then((response) => {
             setUserId(response.data.id); // Save the user ID
-            console.log("Logged-in user ID:", response.data.id);
           })
           .catch((error) => console.error("Error fetching user profile:", error));
   
@@ -35,7 +32,6 @@ function Dashboard() {
           .get(`http://localhost:5000/playlists?token=${token}`)
           .then((response) => {
             setPlaylists(response.data.items || []);
-            console.log("Fetched playlists:", response.data.items);
           })
           .catch((error) => console.error("Error fetching playlists:", error));
       }
@@ -43,9 +39,7 @@ function Dashboard() {
   
 
 
-    async function displaySongs(tracksHref) {
-      console.log("Fetching all tracks from:", tracksHref);
-  
+    async function displaySongs(tracksHref, playlistId) {
       const token = localStorage.getItem("spotify_token");
       let allTracks = [];
       let nextUrl = tracksHref;
@@ -60,16 +54,15 @@ function Dashboard() {
               });
   
               allTracks = allTracks.concat(response.data.items); // Add current page of tracks
-              console.log(`Fetched ${response.data.items.length} tracks, total: ${allTracks.length}`);
   
               nextUrl = response.data.next; // Update next URL from the response
           }
   
-          setSongs(allTracks); // Save all tracks to state
-          console.log("All tracks fetched:", allTracks);
+          console.log("All Tracks:", allTracks);
+          console.log("Navigating with Playlist ID:", playlistId);
   
-          // Navigate to Songs page and pass all tracks
-          navigate("/songs", { state: { trackItems: allTracks } });
+          navigate("/songs", { state: { trackItems: allTracks, playlistID: playlistId }});
+          
       } catch (error) {
           console.error("Error fetching tracks:", error);
       }
@@ -93,8 +86,7 @@ function Dashboard() {
             />
           </div>
             <button onClick={() => {
-              console.log("Button clicked for playlist ID:", playlist);
-              displaySongs(playlist.tracks.href)
+              displaySongs(playlist.tracks.href, playlist.id)
               }}>
               View Songs
             </button>

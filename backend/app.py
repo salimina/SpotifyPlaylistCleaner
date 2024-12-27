@@ -1,3 +1,6 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from ml.data_fetch import fetch_playlist_tracks_with_metrics
 from flask import Flask, request, jsonify, redirect
 from flask_cors import CORS
 from spotipy import Spotify
@@ -21,6 +24,8 @@ sp_oauth = SpotifyOAuth(
     scope="playlist-read-private user-library-read"
 )
 
+print(f"Authorized Scopes: {sp_oauth.scope}")
+
 @app.route('/login')
 def login():
     """Redirect user to Spotify login."""
@@ -39,9 +44,47 @@ def callback():
     try:
         code = request.args.get('code')
         token_info = sp_oauth.get_access_token(code)
-        return jsonify(token_info)  # Returns access token and other details
+
+        access_token = token_info.get('access_token')
+        refresh_token = token_info.get('refresh_token')
+
+        # Print the granted scopes for debugging
+        print(f"Granted Scopes: {token_info.get('scope')}")
+
+        # Save refresh_token for future use
+        if refresh_token:
+            with open("refresh_token.txt", "w") as f:
+                f.write(refresh_token)
+
+        return jsonify({
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "scopes": token_info.get('scope')
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+    
+def refresh_access_token():
+    """Refresh the Spotify access token using the refresh token."""
+    try:
+        with open("refresh_token.txt", "r") as f:
+            refresh_token = f.read().strip()
+
+        print(f"Using refresh token: {refresh_token}")  # Debugging
+        token_info = sp_oauth.refresh_access_token(refresh_token)
+        new_access_token = token_info.get("access_token")
+        print("Access token refreshed:", new_access_token)
+
+        return new_access_token
+    except FileNotFoundError:
+        print("Refresh token file not found. Please log in again.")
+        return None
+    except Exception as e:
+        print(f"Error refreshing access token: {e}")
+        return None
+
+
 
 @app.route('/playlists', methods=['GET'])
 def get_playlists():
@@ -129,5 +172,37 @@ def get_playlist_tracks():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/detect-outlier-songs/<playlist_id>", methods=["GET"])
+def detect_outlier_songs(playlist_id):
+    """Detect outlier songs in a playlist."""
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"error": "Authorization token is missing"}), 401
+
+    token = token.replace("Bearer ", "")  # Remove "Bearer " prefix if present
+
+    try:
+        # Check if token works
+        sp = Spotify(auth=token)
+        sp.current_user()  # Test if the token is valid
+
+    except Exception as e:
+        print("Access token expired or invalid:", e)
+        print("Refreshing token...")
+        token = refresh_access_token()
+        if not token:
+            return jsonify({"error": "Failed to refresh access token"}), 401
+
+    try:
+        # Fetch playlist tracks with metrics
+        user_id = 1234  # Replace with actual user ID if applicable
+        tracks = fetch_playlist_tracks_with_metrics(playlist_id, user_id, token)
+
+        # Return tracks as JSON
+        return jsonify(tracks)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    
 if __name__ == '__main__':
     app.run(port=5000)
