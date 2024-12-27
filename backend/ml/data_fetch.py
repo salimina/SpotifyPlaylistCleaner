@@ -7,16 +7,15 @@ def fetch_audio_features(track_id, token):
     """
     url = f"https://api.spotify.com/v1/audio-features/{track_id}"
     print(f"Token received: {token}")
-    print(f"URL: {url}")
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(url, headers=headers)
+    print(f"headers: {headers}")
     error_data = response.json()
     print(f"Error: {error_data}")
 
     if response.status_code == 200:
+        # Successful request, return the audio features
         data = response.json()
-        
-        # Extract relevant features
         return {
             "danceability": data["danceability"],
             "energy": data["energy"],
@@ -29,7 +28,14 @@ def fetch_audio_features(track_id, token):
             "liveness": data["liveness"]
         }
     else:
-        return None  # Handle error cases appropriately
+        # Handle errors and return the Spotify error object
+        error_data = response.json().get("error", {})
+        return {
+            "error": {
+                "status": error_data.get("status", response.status_code),
+                "message": error_data.get("message", "An error occurred")
+            }
+        }
 
 # def get_user_metrics(user_id):
 #     """
@@ -61,6 +67,7 @@ def fetch_playlist_tracks_with_metrics(playlist_id, user_id, token):
     tracks = []
     for item in data.get("items", []):
         track = item["track"]
+        print(f"track: {track}")
         features = fetch_audio_features(track["id"], token)  # Pass token dynamically
         print(f"reached features: {features}")
         listens = user_metrics.get(track["id"], {}).get("listens", 0)
