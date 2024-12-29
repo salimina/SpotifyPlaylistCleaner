@@ -10,7 +10,6 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/callback" element={<Callback />} /> 
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/songs" element={<Songs />} />
       </Routes>

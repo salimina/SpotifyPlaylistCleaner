@@ -1,12 +1,26 @@
 import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import axios from "axios";
 
 function Songs() {
     const location = useLocation();
     const songlist = location.state?.trackItems || []; // Get trackItems from location state
     console.log("Location State in Songs:", location.state);
     const playlistId = location.state?.playlistID || undefined;
-    const [outlierSongs, setOutlierSongs] = useState([]); // State for outlier songs
+    const [analyzedSongs, setAnalyzedSongs] = useState([]); // Songs with removal predictions
+
+    const analyzePlaylist = async () => {
+        try {
+          const response = await axios.post(
+            "http://localhost:5000/analyze-playlist",
+            { playlist_id: playlistId },
+            { withCredentials: true }
+          );
+          setAnalyzedSongs(response.data);
+        } catch (error) {
+          console.error("Error analyzing playlist:", error);
+        }
+      };
 
     useEffect(() => {
 
@@ -17,31 +31,7 @@ function Songs() {
             }
         });
     }, [songlist]);
-
-    const detectOutlierSongs = async () => {
-        const token = localStorage.getItem("spotify_token"); // Retrieve token from local storage
-
-        if (!token) {
-            console.error("Token not found!");
-            return;
-        }
-
-        try {
-            const response = await fetch(`http://localhost:5000/detect-outlier-songs/${playlistId}`, {
-                method: "GET",
-                headers: {
-                    Authorization: `Bearer ${token}`, // Pass the token in the Authorization header
-                },
-            });
-            console.log("reached");
-
-            const data = await response.json();
-            console.log("Outlier Detection Response:", data);
-            setOutlierSongs(data); // Update the state with detected outlier songs
-        } catch (error) {
-            console.error("Error detecting outlier songs:", error);
-        }
-    };
+      
 
     return (
         <div>
@@ -64,7 +54,7 @@ function Songs() {
             <div>
                 <button
                     onClick={() => {
-                        detectOutlierSongs(playlistId);
+                        analyzePlaylist(playlistId);
                     }}
                 >
                     Clean Playlist
@@ -72,9 +62,9 @@ function Songs() {
             </div>
             <div>
                 <h2>Outlier Songs</h2>
-                {outlierSongs.length > 0 ? (
+                {analyzedSongs.length > 0 ? (
                     <ul>
-                        {outlierSongs.map((song, index) => (
+                        {analyzedSongs.map((song, index) => (
                             <li key={index}>
                                 {song.track.name || "Unnamed Song"} by {song.track.artists[0]?.name || "Unknown Artist"}
                             </li>

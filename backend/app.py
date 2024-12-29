@@ -1,17 +1,24 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from ml.data_fetch import fetch_playlist_tracks_with_metrics
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify, redirect, session
 from flask_cors import CORS
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
+from collections import Counter
 from dotenv import load_dotenv
+from ml.predict import predict_song_removal  # Import the function
 import os
+import numpy as np
+from datetime import datetime
+
 
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+
+# Enable CORS so your front-end (different domain/port) can send cookies
+CORS(app, supports_credentials=True)
+
+# Make sure you have a real secret key in your .env (FLASK_SECRET_KEY="something random")
+app.secret_key = os.getenv("FLASK_SECRET_KEY") or "SUPER_SECRET_FALLBACK"
 
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
@@ -25,6 +32,11 @@ sp_oauth = SpotifyOAuth(
 )
 
 print(f"Authorized Scopes: {sp_oauth.scope}")
+
+
+# -----------------------------------------------------------------------------
+# 1. OAUTH LOGIN + CALLBACK
+# -----------------------------------------------------------------------------
 
 @app.route('/login')
 def login():
@@ -40,169 +52,225 @@ def login():
 
 @app.route('/callback')
 def callback():
-    """Handle Spotify OAuth callback."""
+    """
+    Handle Spotify OAuth callback:
+    - Exchange the 'code' for an access token.
+    - Store tokens in the Flask session.
+    """
     try:
         code = request.args.get('code')
+        if not code:
+            return jsonify({"error": "No code provided by Spotify"}), 400
+
         token_info = sp_oauth.get_access_token(code)
 
+        # Extract tokens
         access_token = token_info.get('access_token')
         refresh_token = token_info.get('refresh_token')
 
-        # Print the granted scopes for debugging
-        print(f"Granted Scopes: {token_info.get('scope')}")
+        # Store tokens in the session
+        session['spotify_token'] = access_token
+        session['spotify_refresh_token'] = refresh_token
 
-        # Save refresh_token for future use
-        if refresh_token:
-            with open("refresh_token.txt", "w") as f:
-                f.write(refresh_token)
+        # Option A: Return JSON if your front-end expects it:
+        # return jsonify({
+        #     "access_token": access_token,
+        #     "refresh_token": refresh_token,
+        #     "scopes": token_info.get('scope')
+        # })
 
-        return jsonify({
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "scopes": token_info.get('scope')
-        })
+        # Option B: Redirect to your React app after successful auth:
+        return redirect("http://localhost:3000/dashboard")
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    
+
 def refresh_access_token():
-    """Refresh the Spotify access token using the refresh token."""
+    """Refresh the Spotify access token using the refresh token stored in the session."""
     try:
-        with open("refresh_token.txt", "r") as f:
-            refresh_token = f.read().strip()
+        refresh_token = session.get("spotify_refresh_token")
+        if not refresh_token:
+            print("No refresh token in session. Please log in again.")
+            return None
 
         print(f"Using refresh token: {refresh_token}")  # Debugging
         token_info = sp_oauth.refresh_access_token(refresh_token)
         new_access_token = token_info.get("access_token")
         print("Access token refreshed:", new_access_token)
 
+        # Update the session with the new token
+        session['spotify_token'] = new_access_token
+
+        # If Spotify returned a new refresh token, update it too
+        if 'refresh_token' in token_info:
+            session['spotify_refresh_token'] = token_info['refresh_token']
+
         return new_access_token
-    except FileNotFoundError:
-        print("Refresh token file not found. Please log in again.")
-        return None
     except Exception as e:
         print(f"Error refreshing access token: {e}")
         return None
 
 
-
-@app.route('/playlists', methods=['GET'])
-def get_playlists():
-    token = request.args.get('token')
-    sp = Spotify(auth=token)
-    playlists = sp.current_user_playlists()
-    return jsonify(playlists)
-
-@app.route('/audio-features', methods=['GET'])
-def get_audio_features():
-    """Fetch audio features for a list of track IDs."""
-    try:
-        token = request.args.get('token')
-        track_ids = request.args.get('track_ids')  # Comma-separated track IDs
-        if not track_ids:
-            return jsonify({"error": "No track IDs provided"}), 400
-        sp = Spotify(auth=token)
-        audio_features = sp.audio_features(track_ids.split(','))
-        return jsonify(audio_features)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/recently-played', methods=['GET'])
-def get_recently_played():
-    """Fetch recently played tracks for the user."""
-    try:
-        token = request.args.get('token')
-        sp = Spotify(auth=token)
-        recently_played = sp.current_user_recently_played(limit=50)
-        return jsonify(recently_played)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/recently-played-in-playlist', methods=['GET'])
-def get_recently_played_in_playlist():
-    """Fetch recently played tracks that are part of a specific playlist."""
-    try:
-        token = request.args.get('token')
-        playlist_id = request.args.get('playlist_id')
-        if not playlist_id:
-            return jsonify({"error": "Playlist ID not provided"}), 400
-
-        sp = Spotify(auth=token)
-
-        # Fetch tracks in the playlist
-        playlist_tracks = sp.playlist_tracks(playlist_id)
-        playlist_track_ids = {item['track']['id'] for item in playlist_tracks['items']}
-
-        # Fetch recently played tracks
-        recently_played = sp.current_user_recently_played(limit=50)
-        recently_played_ids = {item['track']['id'] for item in recently_played['items']}
-
-        # Find intersection
-        recently_played_in_playlist = playlist_track_ids.intersection(recently_played_ids)
-        return jsonify({"recently_played_in_playlist": list(recently_played_in_playlist)})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/track/<track_id>', methods=['GET'])
-def get_track(track_id):
-    """Fetch details for a specific track by ID."""
-    try:
-        token = request.args.get('token')
-        sp = Spotify(auth=token)
-        track = sp.track(track_id)
-        return jsonify(track)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-@app.route('/playlist-tracks', methods=['GET'])
-def get_playlist_tracks():
-    """Fetch all tracks in a specific playlist."""
-    try:
-        token = request.args.get('token')
-        playlist_id = request.args.get('playlist_id')
-        if not playlist_id:
-            return jsonify({"error": "Playlist ID not provided"}), 400
-
-        sp = Spotify(auth=token)
-
-        # Fetch all tracks in the playlist
-        playlist_tracks = sp.playlist_tracks(playlist_id)
-        return jsonify(playlist_tracks)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/detect-outlier-songs/<playlist_id>", methods=["GET"])
-def detect_outlier_songs(playlist_id):
-    """Detect outlier songs in a playlist."""
-    token = request.headers.get("Authorization")
+def get_valid_spotify_client():
+    """
+    Helper function:
+    Retrieves the user's token from session, attempts to validate it,
+    refreshes if necessary, and returns a Spotipy client (Spotify object).
+    """
+    token = session.get('spotify_token')
     if not token:
-        return jsonify({"error": "Authorization token is missing"}), 401
-
-    token = token.replace("Bearer ", "")  # Remove "Bearer " prefix if present
+        return None  # Means user not logged in or token missing
 
     try:
-        # Check if token works
         sp = Spotify(auth=token)
-        sp.current_user()  # Test if the token is valid
+        # Test if token is still valid
+        sp.current_user()  # Will raise exception if invalid/expired
+        return sp
+    except Exception:
+        # Token invalid or expired, try to refresh
+        new_token = refresh_access_token()
+        if not new_token:
+            return None
+        return Spotify(auth=new_token)
 
-    except Exception as e:
-        print("Access token expired or invalid:", e)
-        print("Refreshing token...")
-        token = refresh_access_token()
-        if not token:
-            return jsonify({"error": "Failed to refresh access token"}), 401
+
+# -----------------------------------------------------------------------------
+# 2. SESSION-BASED ENDPOINTS
+# -----------------------------------------------------------------------------
+
+@app.route("/me", methods=["GET"])
+def get_user_profile():
+    """
+    Return the current user's Spotify profile using the session token.
+    Called by the front-end to get userId, display name, etc.
+    """
+    sp = get_valid_spotify_client()
+    if not sp:
+        return jsonify({"error": "No valid token in session."}), 401
 
     try:
-        # Fetch playlist tracks with metrics
-        user_id = 1234  # Replace with actual user ID if applicable
-        tracks = fetch_playlist_tracks_with_metrics(playlist_id, user_id, token)
+        profile = sp.current_user()
+        return jsonify(profile)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-        # Return tracks as JSON
+
+@app.route("/playlists", methods=["GET"])
+def get_user_playlists():
+    """
+    Return the current user's playlists using the session token.
+    Called by the front-end Dashboard to list user’s playlists.
+    """
+    sp = get_valid_spotify_client()
+    if not sp:
+        return jsonify({"error": "No valid token in session."}), 401
+
+    try:
+        playlists = sp.current_user_playlists()
+        return jsonify(playlists)  # Should be an object like { items: [...] }
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/playlist-tracks", methods=["GET"])
+def get_playlist_tracks():
+    """
+    Fetch all tracks from a given playlist using the session-based token.
+    Expects ?playlist_id=<ID> from the front end.
+    """
+    sp = get_valid_spotify_client()
+    if not sp:
+        return jsonify({"error": "No valid token in session."}), 401
+
+    playlist_id = request.args.get("playlist_id")
+    if not playlist_id:
+        return jsonify({"error": "playlist_id param missing"}), 400
+
+    try:
+        # If you want to fetch beyond 100 tracks, you'd iterate with offsets here.
+        tracks = sp.playlist_tracks(playlist_id)
         return jsonify(tracks)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    
+from datetime import datetime
+from flask import jsonify, request
+from collections import Counter
+from ml.predict import predict_song_removal  # Import your ML function
+
+@app.route("/analyze-playlist", methods=["POST"])
+def analyze_playlist():
+    """
+    Analyze a playlist using track-level, playlist-level, and genre alignment features.
+    """
+    sp = get_valid_spotify_client()
+    if not sp:
+        return jsonify({"error": "No valid token in session."}), 401
+
+    playlist_id = request.json.get("playlist_id")
+    if not playlist_id:
+        return jsonify({"error": "Missing playlist_id"}), 400
+
+    try:
+        playlist_tracks = sp.playlist_tracks(playlist_id)
+        all_popularity = []
+        all_genres = []
+        tracks = []
+
+        for item in playlist_tracks["items"]:
+            track = item["track"]
+            track_id = track["id"]
+            name = track["name"]
+            popularity = track["popularity"]
+            release_date = track.get("album", {}).get("release_date", "2000-01-01")
+            release_year = int(release_date.split("-")[0])
+            age = datetime.now().year - release_year
+
+            # Fetch genres for the track's primary artist
+            artist_id = track["artists"][0]["id"]  # Primary artist ID
+            artist_data = sp.artist(artist_id)  # Fetch artist details
+            genres = artist_data.get("genres", ["unknown"])  # Get artist genres
+            genre = genres[0] if genres else "unknown"  # Pick the first genre, fallback to "unknown"
+
+            all_popularity.append(popularity)
+            all_genres.extend(genres)
+
+            avg_playlist_popularity = sum(all_popularity) / len(all_popularity) if all_popularity else 0
+            relative_popularity = popularity - avg_playlist_popularity
+            genre_alignment_score = sum(1 for g in genres if g in Counter(all_genres).most_common(3)) / 3
+
+            features = [popularity, age, avg_playlist_popularity, relative_popularity, genre_alignment_score]
+            remove = predict_song_removal(features, genre)
+            print(f"features, remove: {features} {remove}")
+
+            if remove == 1:
+                tracks.append({
+                    "id": track_id,
+                    "name": name,
+                    "popularity": popularity,
+                    "age": age,
+                    "genres": genres,
+                    "relative_popularity": relative_popularity,
+                    "genre_alignment_score": genre_alignment_score,
+                    "remove": bool(remove)
+                })
+
+
+        print(f"tracks: {tracks}")
+
+        return jsonify({"tracks": tracks})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+
+
+
+
+
+
+
 if __name__ == '__main__':
     app.run(port=5000)
