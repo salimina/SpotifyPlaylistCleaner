@@ -28,7 +28,7 @@ sp_oauth = SpotifyOAuth(
     client_id=CLIENT_ID,
     client_secret=CLIENT_SECRET,
     redirect_uri=REDIRECT_URI,
-    scope="playlist-read-private user-library-read"
+    scope="playlist-read-private playlist-modify-public playlist-modify-private user-library-read"
 )
 
 print(f"Authorized Scopes: {sp_oauth.scope}")
@@ -171,8 +171,7 @@ def get_user_playlists():
         return jsonify(playlists)  # Should be an object like { items: [...] }
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
+    
 @app.route("/playlist-tracks", methods=["GET"])
 def get_playlist_tracks():
     """
@@ -193,11 +192,43 @@ def get_playlist_tracks():
         return jsonify(tracks)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route("/remove-tracks", methods=["DELETE"])
+def remove_tracks_from_playlist():
+    """
+    Remove tracks from a Spotify playlist using the session-based token.
+    Expects playlist_id and tracks (list of track URIs) in the request body.
+    """
+    print("Reached backend - remove-tracks endpoint.")
+    sp = get_valid_spotify_client()
+    if not sp:
+        return jsonify({"error": "No valid token in session."}), 401
 
-from datetime import datetime
-from flask import jsonify, request
-from collections import Counter
-from ml.predict import predict_song_removal  # Import your ML function
+    data = request.json
+    tracks = data.get("tracks")
+    playlist_id = data.get("playlist_id")
+
+    print(f"Received tracks: {tracks}")
+    print(f"Received playlist_id: {playlist_id}")
+
+    if not tracks or not playlist_id:
+        return jsonify({"error": "Missing tracks or playlist_id"}), 400
+
+    try:
+        # Extract URIs from the track objects and pass them as strings
+        track_uris = [track["uri"] for track in tracks]
+        print(f"Track URIs to be removed: {track_uris}")
+
+        # Use the Spotipy method to remove tracks from the playlist
+        sp.playlist_remove_all_occurrences_of_items(playlist_id, track_uris)
+
+        return jsonify({"message": "Tracks removed successfully"}), 200
+
+    except Exception as e:
+        # Log the error and the response from Spotify (if available)
+        print(f"Error removing tracks: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/analyze-playlist", methods=["POST"])
 def analyze_playlist():
@@ -219,49 +250,73 @@ def analyze_playlist():
         tracks = []
 
         for item in playlist_tracks["items"]:
-            track = item["track"]
-            track_id = track["id"]
-            name = track["name"]
-            popularity = track["popularity"]
-            release_date = track.get("album", {}).get("release_date", "2000-01-01")
-            release_year = int(release_date.split("-")[0])
-            age = datetime.now().year - release_year
+            try:
+                # Handle missing track data gracefully
+                track = item.get("track", {})
+                track_id = track.get("id", "unknown_id")
+                name = track.get("name", "Unknown Song")
+                popularity = track.get("popularity", 0)
+                release_date = track.get("album", {}).get("release_date", "2000-01-01")
+                release_year = int(release_date.split("-")[0])
+                age = datetime.now().year - release_year
 
-            # Fetch genres for the track's primary artist
-            artist_id = track["artists"][0]["id"]  # Primary artist ID
-            artist_data = sp.artist(artist_id)  # Fetch artist details
-            genres = artist_data.get("genres", ["unknown"])  # Get artist genres
-            genre = genres[0] if genres else "unknown"  # Pick the first genre, fallback to "unknown"
+                # Handle missing artist data gracefully
+                artist_data = track.get("artists", [{}])
+                artist_id = artist_data[0].get("id", "unknown_artist_id")
+                artist_name = artist_data[0].get("name", "Unknown Artist")
 
-            all_popularity.append(popularity)
-            all_genres.extend(genres)
+                # Fetch genres for the track's primary artist (handle missing artist info)
+                genres = ["unknown"]
+                if artist_id != "unknown_artist_id":
+                    artist_info = sp.artist(artist_id)
+                    genres = artist_info.get("genres", ["unknown"])
 
-            avg_playlist_popularity = sum(all_popularity) / len(all_popularity) if all_popularity else 0
-            relative_popularity = popularity - avg_playlist_popularity
-            genre_alignment_score = sum(1 for g in genres if g in Counter(all_genres).most_common(3)) / 3
+                genre = genres[0] if genres else "unknown"
 
-            features = [popularity, age, avg_playlist_popularity, relative_popularity, genre_alignment_score]
-            remove = predict_song_removal(features, genre)
-            print(f"features, remove: {features} {remove}")
+                # Update playlist-level statistics
+                all_popularity.append(popularity)
+                all_genres.extend(genres)
 
-            if remove == 1:
-                tracks.append({
-                    "id": track_id,
-                    "name": name,
-                    "popularity": popularity,
-                    "age": age,
-                    "genres": genres,
-                    "relative_popularity": relative_popularity,
-                    "genre_alignment_score": genre_alignment_score,
-                    "remove": bool(remove)
-                })
+                # Calculate features
+                avg_playlist_popularity = (
+                    sum(all_popularity) / len(all_popularity) if all_popularity else 0
+                )
+                relative_popularity = popularity - avg_playlist_popularity
+                genre_alignment_score = sum(
+                    1 for g in genres if g in Counter(all_genres).most_common(3)
+                ) / 3
+
+                features = [
+                    popularity,
+                    age,
+                    avg_playlist_popularity,
+                    relative_popularity,
+                    genre_alignment_score,
+                ]
+
+                # Call prediction function
+                remove = predict_song_removal(features, genre)
 
 
-        print(f"tracks: {tracks}")
+                if remove == 1:
+                # Append the track to the results
+                    tracks.append({
+                        "id": track_id,
+                        "name": name,
+                        "artist": artist_name,
+                        "remove": remove,
+                    })
+            except Exception as track_error:
+                print(f"Error processing track: {track_error}")
 
         return jsonify({"tracks": tracks})
+
     except Exception as e:
+        print("Error analyzing playlist:", e)
         return jsonify({"error": str(e)}), 500
+    
+
+
 
 
 
