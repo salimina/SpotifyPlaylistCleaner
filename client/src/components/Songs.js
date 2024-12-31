@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
+import "../Styles/songs.css";
 
 function Songs() {
     const location = useLocation();
@@ -26,10 +27,6 @@ const analyzePlaylist = async () => {
         console.error("Error analyzing playlist:", error);
     }
 };
-
-useEffect(() => {
-    console.log("Updated removals:", removals);
-}, [removals]);
 
 
 const toggleRemoval = (songId, isChecked) => {
@@ -57,12 +54,14 @@ const removeOutliers = async () => {
         if (response.status === 200) {
             console.log("Tracks removed successfully.");
             setRemovals([]);
+            console.log("Before filtering, analyzedSongs:", analyzedSongs);
             const filteredAnalyzedSongs = analyzedSongs.filter((track) => !removals.includes(track.id));
-
-            // Filter out the removed tracks from songlist
+            console.log("After filtering, analyzedSongs:", filteredAnalyzedSongs);
+            console.log("Before filtering, songlist:", songlist);
             const filteredSonglist = songlist.filter((track) => !removals.includes(track.id));
-        
-            // Optionally, update the state with the new filtered arrays
+            console.log("After filtering, songlist:", filteredSonglist);
+
+            // Update state with filtered lists
             setAnalyzedSongs(filteredAnalyzedSongs);
             setSonglist(filteredSonglist);
         } else {
@@ -86,7 +85,7 @@ const removeOutliers = async () => {
       
 
     return (
-        <div>
+        <div className="container">
             <h1>Playlist: {playlistName}</h1>
             <ul>
                 {songlist.map((song, index) => {
@@ -126,7 +125,7 @@ const removeOutliers = async () => {
                                         </li>
                                     ))}
                                 </ul>
-                                <button onClick={removeOutliers}>Remove Outliers</button>
+                                <button className = "outlierButton" onClick={removeOutliers}>Remove Outliers</button>
                             </div>
                         ) : (
                             <div>None</div>

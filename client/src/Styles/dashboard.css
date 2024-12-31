@@ -1,0 +1,45 @@
+.no-bullets {
+    display: grid;
+    list-style-type: none; /* Removes bullet points */
+    padding: 0; /* Optional: Removes default padding */
+    margin: 50px; /* Optional: Removes default margin */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px; /* Optional: Adds space between grid items */
+  }
+
+.listItem{
+    display: flex;
+    flex-direction: column;
+}
+
+.image{
+    width: 175px !important;
+    height: 175px !important;
+    align-items: center !important;
+}
+
+.button{
+    width:175px !important;
+    margin-top: 10px;
+    align-items: center !important;
+    background-color: green !important;
+    color: white !important;
+    border-radius: 10px;
+    border-color: green !important;
+    font-weight: light bold;
+}
+
+.button:hover{
+    background-color: darkgreen !important;
+    border-color: darkgreen !important;
+    cursor: pointer;
+}
+
+.title{
+    margin-bottom: 10px;
+    
+}
+
+h1{
+    margin: 50px;
+}

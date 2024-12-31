@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import "../Styles/dashboard.css";
 import axios from "axios";
 
 function Dashboard() {
@@ -64,23 +65,24 @@ function Dashboard() {
   return (
     <div className="dashboard">
       <h1>Your Playlists</h1>
-      <ul>
+      <ul class="no-bullets">
         {playlists.map((playlist) => (
           // Only show playlists owned by the user
           playlist.owner?.id === userId && (
-            <li key={playlist.id}>
-              <div>{playlist.name}</div>
-              {playlist.images && playlist.images.length > 0 && (
-                <img
-                  src={playlist.images[0].url}
-                  alt={`${playlist.name} cover`}
-                  style={{ width: "100px", height: "100px", marginRight: "10px" }}
-                />
-              )}
-              <button onClick={() => displaySongs(playlist.id, playlist.name)}>
-                View Songs
-              </button>
-            </li>
+              <li key={playlist.id} className="listItem">
+                <div className="title">{playlist.name}</div>
+                {playlist.images && playlist.images.length > 0 && (
+                  <img
+                    src={playlist.images[0].url}
+                    alt={`${playlist.name} cover`}
+                    className="image"
+                    style={{ width: "100px", height: "100px", marginRight: "10px" }}
+                  />
+                )}
+                <button className="button" onClick={() => displaySongs(playlist.id, playlist.name)}>
+                  View Songs
+                </button>
+              </li>
           )
         ))}
       </ul>
