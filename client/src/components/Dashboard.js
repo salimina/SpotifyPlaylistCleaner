@@ -43,7 +43,7 @@ function Dashboard() {
   }, []);
 
   // Fetch the tracks for a given playlist, using a server-based route
-  async function displaySongs(playlistId) {
+  async function displaySongs(playlistId, Name) {
     try {
       // Example: you might have a server route like `/playlist-tracks?playlist_id=xxx`
       const response = await axios.get(
@@ -52,10 +52,10 @@ function Dashboard() {
       );
       // Suppose your Flask route returns { items: [...] } or a similar structure
       const allTracks = response.data.items || [];
-      console.log("All Tracks:", allTracks);
+      console.log("All Tracks:", Name);
 
       // Navigate to /songs page, passing trackItems in location.state
-      navigate("/songs", { state: { trackItems: allTracks, playlistID: playlistId } });
+      navigate("/songs", { state: { trackItems: allTracks, playlistID: playlistId, playlistName: Name} });
     } catch (error) {
       console.error("Error fetching tracks:", error);
     }
@@ -77,7 +77,7 @@ function Dashboard() {
                   style={{ width: "100px", height: "100px", marginRight: "10px" }}
                 />
               )}
-              <button onClick={() => displaySongs(playlist.id)}>
+              <button onClick={() => displaySongs(playlist.id, playlist.name)}>
                 View Songs
               </button>
             </li>

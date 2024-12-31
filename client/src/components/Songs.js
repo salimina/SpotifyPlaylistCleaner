@@ -4,11 +4,13 @@ import axios from "axios";
 
 function Songs() {
     const location = useLocation();
+    const playlistName = location.state?.playlistName || "Unknown Playlist";
     const [songlist, setSonglist] = useState(location.state?.trackItems || [])
     console.log("Location State in Songs:", location.state);
     const playlistId = location.state?.playlistID || undefined;
     const [analyzedSongs, setAnalyzedSongs] = useState([]); // Songs with removal predictions
     const [removals, setRemovals] = useState([]);
+    const [firstClick, setFirstClick] = useState(false);
 
 const analyzePlaylist = async () => {
     console.log("Invoking analyzePlaylist with playlistId:", playlistId);
@@ -19,7 +21,7 @@ const analyzePlaylist = async () => {
             { withCredentials: true }
         );
         setAnalyzedSongs(response.data.tracks);
-        console.log("meow", analyzedSongs);
+        setFirstClick(true);
     } catch (error) {
         console.error("Error analyzing playlist:", error);
     }
@@ -85,7 +87,7 @@ const removeOutliers = async () => {
 
     return (
         <div>
-            <h1>Song List</h1>
+            <h1>Playlist: {playlistName}</h1>
             <ul>
                 {songlist.map((song, index) => {
                     // Ensure song and song.track are valid
@@ -111,24 +113,25 @@ const removeOutliers = async () => {
                 </button>
             </div>
             <div>
-                {analyzedSongs.length > 0 ? (
+                {firstClick && (
                     <div>
                         <h2>Outliers Detected:</h2>
-                            <ul>
-                                {analyzedSongs.map((song, index) => (
-                                    <li key={index}>
-                                        <input type="checkbox" onChange={(e) => (toggleRemoval(song.id, e.target.checked))}>
-                                        </input>
-                                        {song.name} by {song.artist}
-                                    </li>
-                                ))}
-                            </ul>
-                            <button onClick={removeOutliers}>
-                                Remove Outliers
-                            </button>
+                        {analyzedSongs.length > 0 ? (
+                            <div>
+                                <ul>
+                                    {analyzedSongs.map((song, index) => (
+                                        <li key={index}>
+                                            <input type="checkbox" onChange={(e) => (toggleRemoval(song.id, e.target.checked))} />
+                                            {song.name} by {song.artist}
+                                        </li>
+                                    ))}
+                                </ul>
+                                <button onClick={removeOutliers}>Remove Outliers</button>
+                            </div>
+                        ) : (
+                            <div>None</div>
+                        )}
                     </div>
-                ) : (
-                    <div></div>
                 )}
             </div>
         </div>
