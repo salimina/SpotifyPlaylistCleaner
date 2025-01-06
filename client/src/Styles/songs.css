@@ -1,12 +1,74 @@
+
 .container{
-    margin-top: 20px;
-    margin-bottom: 20px;
+    background-color: #121212;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-overflow: scroll !important;
+    overflow-y: scroll !important;
+
 }
 
 h1{
+    color: white !important;
     margin: 20px !important;
+    padding-top: 50px !important;
+}
+
+h2{
+    color: white !important;
+    margin: 20px !important;
+    /* padding-top: 20px; */
 }
 
 ul{
     list-style-type: none; /* Removes bullet points */
+    color: white !important; 
 }
+
+.outlierButton{
+    margin: 30px !important;
+
+}
+
+.cleanButton{
+    margin: 30px !important;
+    height: 50px !important;
+    width: 150px;
+}
+
+.checkbox{
+    margin: 5px;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+  }
+  .container {
+    margin: 0;
+    padding: 0;
+  }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  #none{
+    color: white;
+  }
+
+  /* songs.css */
+.songlist-container {
+    max-height: 550px;      /* or whatever max height you need */
+    overflow-y: auto;       /* shows scrollbar if content exceeds 600px */
+    border: None; /* optional, just for clarity */
+    padding: 1rem;
+    background-color: #1a1a1a;
+  }
+
+  

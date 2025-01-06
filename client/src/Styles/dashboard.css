@@ -10,6 +10,7 @@
 .listItem{
     display: flex;
     flex-direction: column;
+    color: white !important;
 }
 
 .image{
@@ -18,7 +19,7 @@
     align-items: center !important;
 }
 
-.button{
+button{
     width:175px !important;
     margin-top: 10px;
     align-items: center !important;
@@ -27,6 +28,7 @@
     border-radius: 10px;
     border-color: green !important;
     font-weight: light bold;
+    box-shadow: none !important;
 }
 
 .button:hover{
@@ -37,9 +39,35 @@
 
 .title{
     margin-bottom: 10px;
+    color: white !important;
     
 }
 
 h1{
-    margin: 50px;
+    color: white !important;
 }
+
+.dashboard{
+    background-color: #121212;
+    padding: 20px;
+    overflow:auto !important;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+  }
+  .container {
+    margin: 0;
+    padding: 0;
+  }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  
+      
