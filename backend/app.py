@@ -2,11 +2,11 @@ from flask import Flask, request, jsonify, redirect, session
 from flask_cors import CORS
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
+from lyricsgenius import Genius
 from collections import Counter
 from dotenv import load_dotenv
 from ml.predict import predict_song_removal  # Import the function
 import os
-import numpy as np
 from datetime import datetime
 
 
@@ -30,6 +30,8 @@ sp_oauth = SpotifyOAuth(
     redirect_uri=REDIRECT_URI,
     scope="playlist-read-private playlist-modify-public playlist-modify-private user-library-read"
 )
+
+genius = Genius(os.getenv("GENIUS_API_TOKEN"))
 
 print(f"Authorized Scopes: {sp_oauth.scope}")
 
@@ -228,7 +230,20 @@ def remove_tracks_from_playlist():
         # Log the error and the response from Spotify (if available)
         print(f"Error removing tracks: {str(e)}")
         return jsonify({"error": str(e)}), 500
+    
+def fetch_lyrics(track_name, artist_name):
+    """Fetch lyrics for a given track and artist from Genius."""
+    try:
+        song = genius.search_song(track_name, artist_name)
+        return song.lyrics if song else None
+    except Exception as e:
+        print(f"Error fetching lyrics for {track_name} by {artist_name}: {e}")
+        return None
 
+def analyze_sentiment(lyrics):
+    """Analyze sentiment of the lyrics using TextBlob."""
+    blob = TextBlob(lyrics)
+    return blob.sentiment.polarity  # Polarity: -1 (negative) to 1 (positive)
 
 @app.route("/analyze-playlist", methods=["POST"])
 def analyze_playlist():
@@ -264,6 +279,7 @@ def analyze_playlist():
                 artist_data = track.get("artists", [{}])
                 artist_id = artist_data[0].get("id", "unknown_artist_id")
                 artist_name = artist_data[0].get("name", "Unknown Artist")
+                lyrics = fetch_lyrics(name, artist_name)
 
                 # Fetch genres for the track's primary artist (handle missing artist info)
                 genres = ["unknown"]
@@ -295,7 +311,7 @@ def analyze_playlist():
                 ]
 
                 # Call prediction function
-                remove = predict_song_removal(features, genre)
+                remove = predict_song_removal(features, genre, lyrics or "")
 
 
                 if remove == 1:
@@ -315,17 +331,7 @@ def analyze_playlist():
         print("Error analyzing playlist:", e)
         return jsonify({"error": str(e)}), 500
     
-
-
-
-
-
-
-
-
-
-
-
+    
 
 if __name__ == '__main__':
     app.run(port=5000)
