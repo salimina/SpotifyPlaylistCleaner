@@ -310,6 +310,8 @@ def analyze_playlist():
                     genre_alignment_score,
                 ]
 
+                print(features)
+
                 # Call prediction function
                 remove = predict_song_removal(features, genre, lyrics or "")
 
